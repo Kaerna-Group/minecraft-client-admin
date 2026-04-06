@@ -1,11 +1,12 @@
 import { useState } from 'react';
 
-import { Button } from '../components/Button';
-import { EntityTable } from '../components/EntityTable';
-import { Field, TextInput } from '../components/Field';
-import { Panel } from '../components/Panel';
-import { createBan, deleteBan, fetchBans, type UserBan } from '../lib/admin-api';
-import { useAsyncResource } from '../lib/useAsyncResource';
+import { createBan, deleteBan, fetchBans, type UserBan } from '@entities/admin/api/admin-api';
+import { useAuth } from '@features/auth/model/useAuth';
+import { useAsyncResource } from '@shared/lib/react/useAsyncResource';
+import { Button } from '@shared/ui/Button';
+import { EntityTable } from '@shared/ui/EntityTable';
+import { Field, TextInput } from '@shared/ui/Field';
+import { Panel } from '@shared/ui/Panel';
 
 type BanFormState = {
   user_id: string;
@@ -14,7 +15,8 @@ type BanFormState = {
   banned_until: string;
 };
 
-export function BansPage() {
+export function BansSection() {
+  const { canManageBans } = useAuth();
   const { data, error, loading, refresh } = useAsyncResource(fetchBans);
   const [formState, setFormState] = useState<BanFormState>({
     user_id: '',
@@ -25,6 +27,8 @@ export function BansPage() {
   const [actionError, setActionError] = useState('');
 
   const handleCreate = async () => {
+    if (!canManageBans) return;
+
     setActionError('');
 
     try {
@@ -42,6 +46,8 @@ export function BansPage() {
   };
 
   const handleDelete = async (row: UserBan) => {
+    if (!canManageBans) return;
+
     setActionError('');
 
     try {
@@ -66,7 +72,7 @@ export function BansPage() {
               key: 'actions',
               header: 'Actions',
               render: (row) => (
-                <button className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-100" onClick={() => void handleDelete(row)} type="button">
+                <button className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-100 disabled:cursor-not-allowed disabled:opacity-40" disabled={!canManageBans} onClick={() => void handleDelete(row)} type="button">
                   Delete
                 </button>
               ),
@@ -77,22 +83,27 @@ export function BansPage() {
         />
       </Panel>
 
-      <Panel title="Create ban" eyebrow="Mutation">
+      <Panel title="Create ban" eyebrow={canManageBans ? 'Mutation' : 'Read only'}>
+        {!canManageBans ? (
+          <div className="rounded-2xl border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            Your current role can review bans, but only admins or moderators can mutate them.
+          </div>
+        ) : null}
         <Field label="User ID">
-          <TextInput value={formState.user_id} onChange={(event) => setFormState((current) => ({ ...current, user_id: event.target.value }))} />
+          <TextInput disabled={!canManageBans} value={formState.user_id} onChange={(event) => setFormState((current) => ({ ...current, user_id: event.target.value }))} />
         </Field>
         <Field label="Reason">
-          <TextInput value={formState.reason} onChange={(event) => setFormState((current) => ({ ...current, reason: event.target.value }))} />
+          <TextInput disabled={!canManageBans} value={formState.reason} onChange={(event) => setFormState((current) => ({ ...current, reason: event.target.value }))} />
         </Field>
         <Field label="Banned until (ISO or empty)">
-          <TextInput value={formState.banned_until} onChange={(event) => setFormState((current) => ({ ...current, banned_until: event.target.value }))} />
+          <TextInput disabled={!canManageBans} value={formState.banned_until} onChange={(event) => setFormState((current) => ({ ...current, banned_until: event.target.value }))} />
         </Field>
         <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200">
-          <input checked={formState.is_banned} className="h-4 w-4" onChange={(event) => setFormState((current) => ({ ...current, is_banned: event.target.checked }))} type="checkbox" />
+          <input checked={formState.is_banned} className="h-4 w-4" disabled={!canManageBans} onChange={(event) => setFormState((current) => ({ ...current, is_banned: event.target.checked }))} type="checkbox" />
           <span>Mark as banned</span>
         </label>
         {actionError ? <div className="rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{actionError}</div> : null}
-        <Button onClick={() => void handleCreate()} type="button">Create ban</Button>
+        <Button disabled={!canManageBans} onClick={() => void handleCreate()} type="button">Create ban</Button>
       </Panel>
     </div>
   );

@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase } from '../../../shared/api/supabase';
 
 export type Profile = {
   id: string;
@@ -45,6 +45,18 @@ function requireSupabase() {
   }
 
   return supabase;
+}
+
+export async function fetchCurrentUserRoles(userId: string) {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('user_roles')
+    .select('user_id, role')
+    .eq('user_id', userId)
+    .order('role', { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as UserRole[];
 }
 
 export async function fetchProfiles() {

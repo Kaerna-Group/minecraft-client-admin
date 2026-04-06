@@ -1,9 +1,9 @@
-import { EntityTable } from '../components/EntityTable';
-import { Panel } from '../components/Panel';
-import { fetchProfiles } from '../lib/admin-api';
-import { useAsyncResource } from '../lib/useAsyncResource';
+import { fetchProfiles } from '@entities/admin/api/admin-api';
+import { useAsyncResource } from '@shared/lib/react/useAsyncResource';
+import { EntityTable } from '@shared/ui/EntityTable';
+import { Panel } from '@shared/ui/Panel';
 
-export function ProfilesPage() {
+export function ProfilesSection() {
   const { data, error, loading, refresh } = useAsyncResource(fetchProfiles);
 
   return (

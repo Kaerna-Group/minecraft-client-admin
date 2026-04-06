@@ -1,19 +1,41 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import App from '../App';
+import { useLauncherStore } from '../store/launcher-store';
 
 describe('App shell routes', () => {
-  it('renders the main screen shell', () => {
-    render(
-      <MemoryRouter initialEntries={['/app']}>
-        <App />
-      </MemoryRouter>,
-    );
+  beforeEach(() => {
+    useLauncherStore.setState({
+      shellReady: true,
+      bootstrapping: false,
+      session: null,
+      authError: '',
+      registerMessage: '',
+      initializeApp: async () => {},
+    });
+  });
 
-    expect(
-      screen.getByRole('heading', { name: 'Main control surface' }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Play (placeholder)' })).toBeInTheDocument();
+  afterEach(() => {
+    useLauncherStore.setState({
+      shellReady: false,
+      bootstrapping: false,
+      session: null,
+      authError: '',
+      registerMessage: '',
+    });
+  });
+
+  it('renders the login screen for guests', async () => {
+    await act(async () => {
+      render(
+        <MemoryRouter initialEntries={['/login']}>
+          <App />
+        </MemoryRouter>,
+      );
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Login' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Create one here' })).toBeInTheDocument();
   });
 });
