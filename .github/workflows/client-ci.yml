@@ -1,14 +1,21 @@
-name: CI
+name: Client CI
 
 on:
   push:
-    branches:
-      - '**'
+    paths:
+      - 'client/**'
+      - '.github/workflows/client-ci.yml'
   pull_request:
+    paths:
+      - 'client/**'
+      - '.github/workflows/client-ci.yml'
 
 jobs:
-  verify:
+  verify-client:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
 
     steps:
       - name: Checkout
@@ -24,9 +31,10 @@ jobs:
         with:
           node-version: 24.14.0
           cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile=false
+        run: pnpm install --frozen-lockfile
 
       - name: Lint
         run: pnpm lint

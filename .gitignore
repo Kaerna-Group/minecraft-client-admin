@@ -1,7 +1,15 @@
 node_modules/
-dist/
 out/
+dist/
 .vite/
 coverage/
 release/
+client/node_modules/
+client/out/
+client/dist/
+admin/node_modules/
+admin/dist/
+admin/.vite/
 *.tsbuildinfo
+.env
+.env.*
