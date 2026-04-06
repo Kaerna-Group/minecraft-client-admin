@@ -15,6 +15,7 @@ const authValue = {
   hasAdminAccess: false,
   isAdmin: false,
   isModerator: false,
+  canManageProfiles: false,
   canManageNews: false,
   canManageBans: false,
   canManageRoles: false,

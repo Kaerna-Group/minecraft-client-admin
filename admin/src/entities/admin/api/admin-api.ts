@@ -1,7 +1,11 @@
-import { supabase } from '../../../shared/api/supabase';
+import type { CursorPage, CursorValue } from '@shared/lib/cursor';
+import { supabase } from '@shared/api/supabase';
+
+export type SortDirection = 'asc' | 'desc';
 
 export type Profile = {
   id: string;
+  email: string | null;
   nickname: string | null;
   avatar_url: string | null;
   created_at: string | null;
@@ -10,12 +14,15 @@ export type Profile = {
 
 export type UserRole = {
   user_id: string;
+  email?: string | null;
   role: string;
+  created_at?: string | null;
 };
 
 export type UserBan = {
   id: string;
   user_id: string;
+  email?: string | null;
   is_banned: boolean;
   reason: string | null;
   banned_until: string | null;
@@ -28,6 +35,7 @@ export type LauncherNews = {
   body: string;
   is_published: boolean;
   created_at: string | null;
+  updated_at?: string | null;
 };
 
 export type BuildRelease = {
@@ -37,7 +45,48 @@ export type BuildRelease = {
   changelog: string | null;
   is_active: boolean;
   created_at: string | null;
+  updated_at?: string | null;
 };
+
+type CursorQuery = {
+  pageSize?: number;
+  afterCursor?: CursorValue | null;
+};
+
+export type ProfileQuery = CursorQuery & {
+  search?: string;
+  sortBy?: 'created_at' | 'email' | 'nickname' | 'last_login_at';
+  sortDirection?: SortDirection;
+};
+
+export type RoleQuery = CursorQuery & {
+  search?: string;
+  sortBy?: 'user_id' | 'email' | 'role' | 'created_at';
+  sortDirection?: SortDirection;
+};
+
+export type BanQuery = CursorQuery & {
+  search?: string;
+  statusFilter?: 'all' | 'active' | 'inactive';
+  sortBy?: 'created_at' | 'email' | 'banned_until';
+  sortDirection?: SortDirection;
+};
+
+export type NewsQuery = CursorQuery & {
+  search?: string;
+  publicationFilter?: 'all' | 'published' | 'draft';
+  sortBy?: 'created_at' | 'updated_at' | 'title';
+  sortDirection?: SortDirection;
+};
+
+export type ReleaseQuery = CursorQuery & {
+  search?: string;
+  statusFilter?: 'all' | 'active' | 'inactive';
+  sortBy?: 'created_at' | 'updated_at' | 'version';
+  sortDirection?: SortDirection;
+};
+
+const DEFAULT_PAGE_SIZE = 20;
 
 function requireSupabase() {
   if (!supabase) {
@@ -45,6 +94,35 @@ function requireSupabase() {
   }
 
   return supabase;
+}
+
+function parseCursorPage<T>(data: unknown): CursorPage<T> {
+  if (!data || typeof data !== 'object') {
+    return { items: [], nextCursor: null, hasMore: false };
+  }
+
+  const payload = data as {
+    items?: T[];
+    next_cursor?: CursorValue | null;
+    has_more?: boolean;
+  };
+
+  return {
+    items: Array.isArray(payload.items) ? payload.items : [],
+    nextCursor: payload.next_cursor ?? null,
+    hasMore: Boolean(payload.has_more),
+  };
+}
+
+async function callCursorRpc<T>(functionName: string, params: Record<string, unknown>) {
+  const client = requireSupabase();
+  const { data, error } = await client.rpc(functionName, params);
+
+  if (error) {
+    throw error;
+  }
+
+  return parseCursorPage<T>(data);
 }
 
 export async function fetchCurrentUserRoles(userId: string) {
@@ -59,121 +137,143 @@ export async function fetchCurrentUserRoles(userId: string) {
   return (data ?? []) as UserRole[];
 }
 
-export async function fetchProfiles() {
-  const client = requireSupabase();
-  const { data, error } = await client
-    .from('profiles')
-    .select('id, nickname, avatar_url, created_at, last_login_at')
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return (data ?? []) as Profile[];
+export async function fetchProfiles(query: ProfileQuery = {}) {
+  return callCursorRpc<Profile>('admin_list_profiles', {
+    search_query: query.search ?? null,
+    sort_by: query.sortBy ?? 'created_at',
+    sort_direction: query.sortDirection ?? 'desc',
+    page_size: query.pageSize ?? DEFAULT_PAGE_SIZE,
+    after_cursor: query.afterCursor ?? null,
+  });
 }
 
-export async function fetchRoles() {
+export async function updateProfile(input: Pick<Profile, 'id' | 'nickname' | 'avatar_url'>) {
   const client = requireSupabase();
-  const { data, error } = await client
-    .from('user_roles')
-    .select('user_id, role')
-    .order('user_id', { ascending: true });
+  const { error } = await client.rpc('admin_update_profile', {
+    target_profile_id: input.id,
+    next_nickname: input.nickname ?? null,
+    next_avatar_url: input.avatar_url ?? null,
+  });
 
   if (error) throw error;
-  return (data ?? []) as UserRole[];
+}
+
+export async function fetchRoles(query: RoleQuery = {}) {
+  return callCursorRpc<UserRole>('admin_list_user_roles', {
+    search_query: query.search ?? null,
+    sort_by: query.sortBy ?? 'user_id',
+    sort_direction: query.sortDirection ?? 'asc',
+    page_size: query.pageSize ?? DEFAULT_PAGE_SIZE,
+    after_cursor: query.afterCursor ?? null,
+  });
 }
 
 export async function upsertRole(input: UserRole) {
   const client = requireSupabase();
-  const { error } = await client.from('user_roles').upsert(input);
+  const { error } = await client.rpc('admin_upsert_user_role', {
+    target_user_id: input.user_id,
+    target_role: input.role,
+  });
   if (error) throw error;
 }
 
 export async function deleteRole(input: UserRole) {
   const client = requireSupabase();
-  const { error } = await client
-    .from('user_roles')
-    .delete()
-    .eq('user_id', input.user_id)
-    .eq('role', input.role);
+  const { error } = await client.rpc('admin_delete_user_role', {
+    target_user_id: input.user_id,
+    target_role: input.role,
+  });
   if (error) throw error;
 }
 
-export async function fetchBans() {
-  const client = requireSupabase();
-  const { data, error } = await client
-    .from('user_bans')
-    .select('id, user_id, is_banned, reason, banned_until, created_at')
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return (data ?? []) as UserBan[];
+export async function fetchBans(query: BanQuery = {}) {
+  return callCursorRpc<UserBan>('admin_list_user_bans', {
+    search_query: query.search ?? null,
+    status_filter: query.statusFilter ?? 'all',
+    sort_by: query.sortBy ?? 'created_at',
+    sort_direction: query.sortDirection ?? 'desc',
+    page_size: query.pageSize ?? DEFAULT_PAGE_SIZE,
+    after_cursor: query.afterCursor ?? null,
+  });
 }
 
-export async function createBan(input: Omit<UserBan, 'id' | 'created_at'>) {
+export async function upsertBan(input: Partial<UserBan> & Pick<UserBan, 'user_id' | 'is_banned'>) {
   const client = requireSupabase();
-  const { error } = await client.from('user_bans').insert(input);
+  const { error } = await client.rpc('admin_upsert_user_ban', {
+    target_ban_id: input.id ?? null,
+    target_user_id: input.user_id,
+    target_is_banned: input.is_banned,
+    target_reason: input.reason ?? null,
+    target_banned_until: input.banned_until ?? null,
+  });
   if (error) throw error;
 }
 
 export async function deleteBan(id: string) {
   const client = requireSupabase();
-  const { error } = await client.from('user_bans').delete().eq('id', id);
+  const { error } = await client.rpc('admin_delete_user_ban', {
+    target_ban_id: id,
+  });
   if (error) throw error;
 }
 
-export async function fetchNews() {
-  const client = requireSupabase();
-  const { data, error } = await client
-    .from('launcher_news')
-    .select('id, title, body, is_published, created_at')
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return (data ?? []) as LauncherNews[];
+export async function fetchNews(query: NewsQuery = {}) {
+  return callCursorRpc<LauncherNews>('admin_list_launcher_news', {
+    search_query: query.search ?? null,
+    publication_filter: query.publicationFilter ?? 'all',
+    sort_by: query.sortBy ?? 'created_at',
+    sort_direction: query.sortDirection ?? 'desc',
+    page_size: query.pageSize ?? DEFAULT_PAGE_SIZE,
+    after_cursor: query.afterCursor ?? null,
+  });
 }
 
-export async function createNews(input: Omit<LauncherNews, 'id' | 'created_at'>) {
+export async function upsertNews(input: Partial<LauncherNews> & Pick<LauncherNews, 'title' | 'body' | 'is_published'>) {
   const client = requireSupabase();
-  const { error } = await client.from('launcher_news').insert(input);
-  if (error) throw error;
-}
-
-export async function updateNewsPublish(id: string, isPublished: boolean) {
-  const client = requireSupabase();
-  const { error } = await client.from('launcher_news').update({ is_published: isPublished }).eq('id', id);
+  const { error } = await client.rpc('admin_upsert_launcher_news', {
+    target_news_id: input.id ?? null,
+    target_title: input.title,
+    target_body: input.body,
+    target_is_published: input.is_published,
+  });
   if (error) throw error;
 }
 
 export async function deleteNews(id: string) {
   const client = requireSupabase();
-  const { error } = await client.from('launcher_news').delete().eq('id', id);
+  const { error } = await client.rpc('admin_delete_launcher_news', {
+    target_news_id: id,
+  });
   if (error) throw error;
 }
 
-export async function fetchBuildReleases() {
-  const client = requireSupabase();
-  const { data, error } = await client
-    .from('build_releases')
-    .select('id, version, manifest_url, changelog, is_active, created_at')
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return (data ?? []) as BuildRelease[];
+export async function fetchBuildReleases(query: ReleaseQuery = {}) {
+  return callCursorRpc<BuildRelease>('admin_list_build_releases', {
+    search_query: query.search ?? null,
+    status_filter: query.statusFilter ?? 'all',
+    sort_by: query.sortBy ?? 'created_at',
+    sort_direction: query.sortDirection ?? 'desc',
+    page_size: query.pageSize ?? DEFAULT_PAGE_SIZE,
+    after_cursor: query.afterCursor ?? null,
+  });
 }
 
-export async function createBuildRelease(input: Omit<BuildRelease, 'id' | 'created_at'>) {
+export async function upsertBuildRelease(input: Partial<BuildRelease> & Pick<BuildRelease, 'version' | 'is_active'>) {
   const client = requireSupabase();
-  const { error } = await client.from('build_releases').insert(input);
-  if (error) throw error;
-}
-
-export async function updateBuildReleaseActive(id: string, isActive: boolean) {
-  const client = requireSupabase();
-  const { error } = await client.from('build_releases').update({ is_active: isActive }).eq('id', id);
+  const { error } = await client.rpc('admin_upsert_build_release', {
+    target_release_id: input.id ?? null,
+    target_version: input.version,
+    target_manifest_url: input.manifest_url ?? null,
+    target_changelog: input.changelog ?? null,
+    target_is_active: input.is_active,
+  });
   if (error) throw error;
 }
 
 export async function deleteBuildRelease(id: string) {
   const client = requireSupabase();
-  const { error } = await client.from('build_releases').delete().eq('id', id);
+  const { error } = await client.rpc('admin_delete_build_release', {
+    target_release_id: id,
+  });
   if (error) throw error;
 }

@@ -10,9 +10,10 @@ type EntityTableProps<T> = {
   columns: Column<T>[];
   emptyLabel: string;
   rows: T[];
+  getRowKey?: (row: T, index: number) => string;
 };
 
-export function EntityTable<T>({ columns, emptyLabel, rows }: EntityTableProps<T>) {
+export function EntityTable<T>({ columns, emptyLabel, rows, getRowKey }: EntityTableProps<T>) {
   if (rows.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-6 text-sm text-slate-400">
@@ -35,7 +36,7 @@ export function EntityTable<T>({ columns, emptyLabel, rows }: EntityTableProps<T
         </thead>
         <tbody className="divide-y divide-white/5 bg-[#09101d]/60">
           {rows.map((row, index) => (
-            <tr key={index} className="align-top">
+            <tr key={getRowKey ? getRowKey(row, index) : index} className="align-top">
               {columns.map((column) => (
                 <td key={column.key} className="px-4 py-3 text-slate-300">
                   {column.render(row)}
