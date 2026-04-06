@@ -32,7 +32,15 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/main/**/*.ts', 'src/preload/**/*.ts', '*.config.{mjs,ts}'],
+    files: [
+      'src/main/**/*.ts',
+      'src/preload/**/*.ts',
+      'electron.vite.config.ts',
+      'eslint.config.mjs',
+      'postcss.config.cjs',
+      'tailwind.config.cjs',
+      'vitest.config.ts',
+    ],
     languageOptions: {
       globals: {
         ...globals.node,
