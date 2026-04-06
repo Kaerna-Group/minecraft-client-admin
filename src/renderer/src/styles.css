@@ -1,0 +1,278 @@
+:root {
+  color-scheme: dark;
+  font-family: 'Segoe UI', 'Trebuchet MS', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  background:
+    radial-gradient(circle at top, rgba(92, 184, 92, 0.16), transparent 34%),
+    linear-gradient(180deg, #0a1117 0%, #111a22 45%, #0b0f14 100%);
+  color: #ecf4ee;
+  --surface: rgba(14, 20, 28, 0.82);
+  --surface-strong: rgba(23, 32, 44, 0.95);
+  --outline: rgba(186, 226, 197, 0.14);
+  --accent: #91d76a;
+  --accent-strong: #c7ff79;
+  --muted: #91a4a0;
+  --danger: #f78383;
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.38);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.side-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 28px;
+  border-right: 1px solid var(--outline);
+  background: rgba(6, 10, 16, 0.58);
+  backdrop-filter: blur(18px);
+}
+
+.main-panel {
+  padding: 28px;
+}
+
+.nav-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nav-link {
+  padding: 12px 14px;
+  border-radius: 14px;
+  color: #dce8de;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+}
+
+.nav-link-active {
+  background: rgba(145, 215, 106, 0.13);
+  border-color: rgba(145, 215, 106, 0.28);
+}
+
+.hero,
+.panel,
+.status-card {
+  border: 1px solid var(--outline);
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.hero,
+.panel {
+  padding: 24px;
+}
+
+.compact-hero {
+  grid-column: 1 / -1;
+}
+
+.status-card {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 18px;
+  margin-top: auto;
+}
+
+.status-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--danger);
+  box-shadow: 0 0 0 6px rgba(247, 131, 131, 0.12);
+}
+
+.status-dot.is-live {
+  background: var(--accent);
+  box-shadow: 0 0 0 6px rgba(145, 215, 106, 0.12);
+}
+
+.screen-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.panel-content {
+  display: grid;
+  gap: 14px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  color: var(--accent-strong);
+}
+
+.muted,
+.metric-label {
+  color: var(--muted);
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 2rem;
+}
+
+h2 {
+  font-size: 1.6rem;
+}
+
+.hero-copy {
+  max-width: 720px;
+  margin-top: 12px;
+  color: #d7e2da;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.button {
+  border: none;
+  border-radius: 14px;
+  padding: 12px 18px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.button-primary {
+  background: linear-gradient(135deg, #91d76a 0%, #c7ff79 100%);
+  color: #16210f;
+}
+
+.button-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: #eef6ef;
+  border: 1px solid var(--outline);
+}
+
+.metric-grid,
+.settings-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.metric-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 22px;
+}
+
+.metric-card {
+  padding: 16px;
+  border-radius: 18px;
+  background: var(--surface-strong);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.field,
+.checkbox-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field-wide {
+  grid-column: 1 / -1;
+}
+
+input {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  padding: 12px 14px;
+}
+
+.checkbox-row {
+  flex-direction: row;
+  align-items: center;
+}
+
+.detail-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.log-box {
+  margin: 0;
+  padding: 16px;
+  border-radius: 18px;
+  background: #091019;
+  color: #bee3c0;
+  overflow: auto;
+}
+
+@media (max-width: 980px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .screen-grid,
+  .metric-grid,
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .side-rail {
+    margin: 18px 18px 0;
+    border-right: none;
+    border: 1px solid var(--outline);
+    border-radius: 24px;
+  }
+
+  .main-panel {
+    padding-top: 18px;
+  }
+}
