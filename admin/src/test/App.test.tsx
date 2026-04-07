@@ -10,6 +10,7 @@ const authValue = {
   configured: true,
   loading: false,
   roleLoading: false,
+  roleError: '',
   session: null,
   roles: [],
   hasAdminAccess: false,

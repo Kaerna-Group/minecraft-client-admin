@@ -7,7 +7,7 @@ import { Field, TextInput } from '@shared/ui/Field';
 import { Panel } from '@shared/ui/Panel';
 
 export function LoginPageContent() {
-  const { configured, hasAdminAccess, loading, roleLoading, session, signIn } = useAuth();
+  const { configured, hasAdminAccess, loading, roleError, roleLoading, session, signIn } = useAuth();
   const [email, setEmail] = useState('admin@kaerna.local');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -41,6 +41,7 @@ export function LoginPageContent() {
         <Panel title="Admin login" eyebrow="Supabase Auth">
           <p className="text-sm leading-7 text-slate-300">Sign in with an authorized admin account to manage profiles, roles, bans, launcher news, and active build releases.</p>
           {!configured ? <div className="rounded-2xl border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">Missing <code>VITE_SUPABASE_URL</code> or <code>VITE_SUPABASE_ANON_KEY</code>. Add them in the admin environment before using login.</div> : null}
+          {roleError ? <div className="rounded-2xl border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">Role bootstrap warning: {roleError}</div> : null}
           <form className="grid gap-4" onSubmit={handleSubmit}>
             <Field label="Email"><TextInput value={email} onChange={(event) => setEmail(event.target.value)} type="email" /></Field>
             <Field label="Password"><TextInput value={password} onChange={(event) => setPassword(event.target.value)} type="password" /></Field>

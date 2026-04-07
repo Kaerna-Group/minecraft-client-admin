@@ -5,6 +5,7 @@ import type { CursorPage, CursorValue } from '@shared/lib/cursor';
 type Loader<T> = (cursor: CursorValue | null) => Promise<CursorPage<T>>;
 
 export function useCursorResource<T>(loader: Loader<T>, queryKey: string) {
+  const loaderRef = useRef(loader);
   const previousQueryKeyRef = useRef(queryKey);
   const [currentCursor, setCurrentCursor] = useState<CursorValue | null>(null);
   const [history, setHistory] = useState<Array<CursorValue | null>>([]);
@@ -13,6 +14,10 @@ export function useCursorResource<T>(loader: Loader<T>, queryKey: string) {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    loaderRef.current = loader;
+  }, [loader]);
 
   const effectiveCursor = useMemo(() => {
     if (previousQueryKeyRef.current !== queryKey) {
@@ -27,7 +32,7 @@ export function useCursorResource<T>(loader: Loader<T>, queryKey: string) {
     setError('');
 
     try {
-      const result = await loader(effectiveCursor);
+      const result = await loaderRef.current(effectiveCursor);
       setData(result.items);
       setNextCursor(result.nextCursor);
       setHasMore(result.hasMore);
@@ -40,17 +45,22 @@ export function useCursorResource<T>(loader: Loader<T>, queryKey: string) {
     } finally {
       setLoading(false);
     }
-  }, [effectiveCursor, loader]);
+  }, [effectiveCursor]);
 
   useEffect(() => {
     if (previousQueryKeyRef.current !== queryKey) {
       previousQueryKeyRef.current = queryKey;
       setCurrentCursor(null);
       setHistory([]);
+      return;
     }
 
     void refresh();
   }, [queryKey, refresh]);
+
+  useEffect(() => {
+    void refresh();
+  }, [effectiveCursor, refresh]);
 
   const goNext = useCallback(() => {
     if (!nextCursor) {

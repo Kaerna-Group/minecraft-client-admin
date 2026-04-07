@@ -7,6 +7,7 @@ export type AuthContextValue = {
   configured: boolean;
   loading: boolean;
   roleLoading: boolean;
+  roleError: string;
   session: Session | null;
   roles: AdminRole[];
 } & RoleCapabilities & {
