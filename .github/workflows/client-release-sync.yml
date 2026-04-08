@@ -1,8 +1,16 @@
 name: client-release-sync
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: GitHub release tag to sync to Supabase
+        required: true
+        type: string
   release:
-    types: [published]
+    types:
+      - published
+      - edited
 
 jobs:
   sync-release-to-supabase:
@@ -10,17 +18,35 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Validate release asset
+      - name: Resolve release and zip asset
         id: asset
         uses: actions/github-script@v7
         with:
           script: |
-            const release = context.payload.release;
-            const assets = release.assets || [];
+            const inputTag = core.getInput('tag');
+            const isManual = context.eventName === 'workflow_dispatch';
+
+            const release = isManual
+              ? (await github.rest.repos.getReleaseByTag({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag: inputTag,
+                })).data
+              : context.payload.release;
+
+            const assets = (await github.rest.repos.listReleaseAssets({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release.id,
+              per_page: 100,
+            })).data;
+
             const zipAsset = assets.find((asset) => asset.name.toLowerCase().endsWith('.zip'));
 
             if (!zipAsset) {
-              core.setFailed('No .zip asset was found on the published GitHub Release.');
+              core.setFailed(
+                `No custom .zip asset was found on release ${release.tag_name}. Upload a build archive like kaerna-client-build-${release.tag_name}.zip and rerun this workflow.`,
+              );
               return;
             }
 
