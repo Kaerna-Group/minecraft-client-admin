@@ -12,15 +12,64 @@ import { isSupabaseConfigured } from '@renderer/lib/env';
 import { launcherApi } from '@renderer/lib/launcher-api';
 import { normalizeSettings } from '@renderer/lib/settings';
 import { supabase } from '@renderer/lib/supabase';
+import type { LauncherInstallRequest, LauncherReleaseDescriptor } from '../../../../shared/launcher-api';
 
 import { baseState } from './base-state';
 import type { LauncherStore } from './types';
 
 let initializePromise: Promise<void> | null = null;
 let authSubscriptionBound = false;
+let installPollingTimer: ReturnType<typeof setTimeout> | null = null;
 
-export function createLauncherActions(set: StoreApi<LauncherStore>['setState']) {
+function mapReleaseDescriptor(release: LauncherStore['activeRelease']): LauncherReleaseDescriptor | null {
+  if (!release?.zip_url) {
+    return null;
+  }
+
+  return {
+    id: release.id,
+    version: release.version,
+    zipUrl: release.zip_url,
+    changelog: release.changelog,
+    publishedAt: release.published_at,
+    githubReleaseTag: release.github_release_tag,
+  };
+}
+
+export function createLauncherActions(set: StoreApi<LauncherStore>['setState'], get: StoreApi<LauncherStore>['getState']) {
+  const stopInstallPolling = () => {
+    if (installPollingTimer) {
+      clearTimeout(installPollingTimer);
+      installPollingTimer = null;
+    }
+  };
+
+  const startInstallPolling = () => {
+    stopInstallPolling();
+
+    const tick = async () => {
+      try {
+        const installState = await launcherApi.getInstallState();
+        set({ installState });
+
+        if (installState.phase === 'downloading' || installState.phase === 'extracting') {
+          installPollingTimer = setTimeout(() => {
+            void tick();
+          }, 900);
+          return;
+        }
+
+        stopInstallPolling();
+      } catch {
+        stopInstallPolling();
+      }
+    };
+
+    void tick();
+  };
+
   const clearLauncherData = () => {
+    stopInstallPolling();
     set({
       session: null,
       roles: [],
@@ -33,7 +82,21 @@ export function createLauncherActions(set: StoreApi<LauncherStore>['setState']) 
       registerMessage: '',
       dataLoading: false,
       serverStatus: 'offline',
+      installState: {
+        ...baseState.installState,
+        instancePath: get().settings.instancePath,
+      },
     });
+  };
+
+  const syncInstallState = async (releaseOverride?: LauncherStore['activeRelease']) => {
+    const state = get();
+    const activeRelease = releaseOverride ?? state.activeRelease;
+    const installState = await launcherApi.checkBuildStatus(mapReleaseDescriptor(activeRelease), {
+      instancePath: state.settings.instancePath,
+      debugMode: state.settings.debugMode,
+    });
+    set({ installState });
   };
 
   const loadLauncherData = async (userId: string) => {
@@ -54,6 +117,8 @@ export function createLauncherActions(set: StoreApi<LauncherStore>['setState']) 
         activeRelease,
         serverStatus: 'online',
       });
+
+      await syncInstallState(activeRelease);
     } catch (error) {
       set({
         dataError: error instanceof Error ? error.message : 'Failed to load launcher data.',
@@ -81,15 +146,71 @@ export function createLauncherActions(set: StoreApi<LauncherStore>['setState']) 
     await loadLauncherData(session.user.id);
   };
 
+  const installWithRequest = async (request: LauncherInstallRequest) => {
+    const nextState = await launcherApi.installBuild(request);
+    set({ installState: nextState });
+
+    if (nextState.phase === 'downloading' || nextState.phase === 'extracting') {
+      startInstallPolling();
+      return;
+    }
+
+    if (nextState.phase === 'ready') {
+      await syncInstallState();
+    }
+  };
+
   return {
     setLogsVisible: (value: boolean) => set({ logsVisible: value }),
-    updateSettings: (value: Partial<LauncherStore['settings']>) =>
-      set((state) => ({
-        settings: normalizeSettings({
-          ...state.settings,
-          ...value,
-        }),
-      })),
+    updateSettings: (value: Partial<LauncherStore['settings']>) => {
+      const nextSettings = normalizeSettings({
+        ...get().settings,
+        ...value,
+      });
+
+      set({ settings: nextSettings });
+      void syncInstallState();
+    },
+    refreshInstallState: async () => {
+      await syncInstallState();
+    },
+    installActiveRelease: async () => {
+      const state = get();
+      const release = mapReleaseDescriptor(state.activeRelease);
+
+      if (!release) {
+        set((current) => ({
+          installState: {
+            ...current.installState,
+            phase: 'failed',
+            lastError: 'No active release with a ZIP URL is available for install.',
+            message: 'Install cannot start without an active ZIP release.',
+          },
+        }));
+        return;
+      }
+
+      await installWithRequest({
+        release,
+        settings: {
+          instancePath: state.settings.instancePath,
+          debugMode: state.settings.debugMode,
+        },
+      });
+    },
+    retryInstall: async () => {
+      const nextState = await launcherApi.retryInstall();
+      set({ installState: nextState });
+
+      if (nextState.phase === 'downloading' || nextState.phase === 'extracting') {
+        startInstallPolling();
+        return;
+      }
+
+      if (nextState.phase === 'ready') {
+        await syncInstallState();
+      }
+    },
     initializeApp: async () => {
       if (initializePromise) {
         return initializePromise;
@@ -98,10 +219,15 @@ export function createLauncherActions(set: StoreApi<LauncherStore>['setState']) 
       initializePromise = (async () => {
         set({ bootstrapping: true, configured: isSupabaseConfigured, authError: '' });
 
-        const appInfo = await launcherApi.getAppInfo();
+        const [appInfo, installState] = await Promise.all([
+          launcherApi.getAppInfo(),
+          launcherApi.getInstallState(),
+        ]);
+
         set({
           appVersion: appInfo?.version ?? baseState.appVersion,
           platform: appInfo?.platform ?? 'unknown',
+          installState,
         });
 
         if (!supabase) {
@@ -194,3 +320,5 @@ export function createLauncherActions(set: StoreApi<LauncherStore>['setState']) 
     },
   };
 }
+
+

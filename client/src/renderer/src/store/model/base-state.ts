@@ -6,6 +6,20 @@ import type {
   LauncherRelease,
 } from '@renderer/lib/client-api';
 import { defaultSettings } from '@renderer/lib/settings';
+import type { LauncherInstallState } from '../../../../shared/launcher-api';
+
+const initialInstallState: LauncherInstallState = {
+  phase: 'idle',
+  installedVersion: null,
+  remoteVersion: null,
+  updateAvailable: false,
+  progress: 0,
+  message: 'Launcher has not checked the local build yet.',
+  instancePath: defaultSettings.instancePath,
+  lastInstalledAt: null,
+  lastError: '',
+  activeReleaseId: null,
+};
 
 export const baseState = {
   configured: isSupabaseConfigured,
@@ -23,6 +37,7 @@ export const baseState = {
   activeBan: null as LauncherBan | null,
   news: [] as LauncherNews[],
   activeRelease: null as LauncherRelease | null,
+  installState: initialInstallState,
   settings: defaultSettings,
   authError: '',
   dataError: '',

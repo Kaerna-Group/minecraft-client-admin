@@ -7,9 +7,9 @@ import type { LauncherStore } from '@renderer/store/model/types';
 
 export const useLauncherStore = create<LauncherStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...baseState,
-      ...createLauncherActions(set),
+      ...createLauncherActions(set, get),
     }),
     {
       name: 'kaerna-launcher-shell',

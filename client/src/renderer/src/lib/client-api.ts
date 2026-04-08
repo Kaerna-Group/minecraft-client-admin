@@ -33,10 +33,13 @@ export type LauncherNews = {
 export type LauncherRelease = {
   id: string;
   version: string;
+  zip_url: string | null;
   manifest_url: string | null;
   changelog: string | null;
   is_active: boolean;
   created_at: string | null;
+  published_at: string | null;
+  github_release_tag: string | null;
 };
 
 function requireSupabase() {
@@ -115,7 +118,7 @@ export async function fetchActiveRelease() {
   const client = requireSupabase();
   const { data, error } = await client
     .from('build_releases')
-    .select('id, version, manifest_url, changelog, is_active, created_at')
+    .select('id, version, zip_url, manifest_url, changelog, is_active, created_at, published_at, github_release_tag')
     .eq('is_active', true)
     .order('created_at', { ascending: false })
     .limit(1);

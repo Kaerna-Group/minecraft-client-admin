@@ -7,6 +7,7 @@ import type {
   LauncherRelease,
 } from '@renderer/lib/client-api';
 import type { LauncherSettings } from '@renderer/lib/settings';
+import type { LauncherInstallState } from '../../../../shared/launcher-api';
 
 export type LauncherStore = {
   configured: boolean;
@@ -24,6 +25,7 @@ export type LauncherStore = {
   activeBan: LauncherBan | null;
   news: LauncherNews[];
   activeRelease: LauncherRelease | null;
+  installState: LauncherInstallState;
   settings: LauncherSettings;
   authError: string;
   dataError: string;
@@ -31,6 +33,9 @@ export type LauncherStore = {
   initializeApp: () => Promise<void>;
   setLogsVisible: (value: boolean) => void;
   updateSettings: (value: Partial<LauncherSettings>) => void;
+  refreshInstallState: () => Promise<void>;
+  installActiveRelease: () => Promise<void>;
+  retryInstall: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<boolean>;
   signUp: (email: string, password: string) => Promise<boolean>;
   signOut: () => Promise<void>;

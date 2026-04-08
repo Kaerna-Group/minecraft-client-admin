@@ -1,0 +1,60 @@
+name: client-release-sync
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  sync-release-to-supabase:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Validate release asset
+        id: asset
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const release = context.payload.release;
+            const assets = release.assets || [];
+            const zipAsset = assets.find((asset) => asset.name.toLowerCase().endsWith('.zip'));
+
+            if (!zipAsset) {
+              core.setFailed('No .zip asset was found on the published GitHub Release.');
+              return;
+            }
+
+            core.setOutput('version', release.tag_name);
+            core.setOutput('zip_url', zipAsset.browser_download_url);
+            core.setOutput('changelog', release.body || '');
+            core.setOutput('published_at', release.published_at || '');
+            core.setOutput('github_release_tag', release.tag_name || '');
+
+      - name: Publish active build release in Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RELEASE_VERSION: ${{ steps.asset.outputs.version }}
+          RELEASE_ZIP_URL: ${{ steps.asset.outputs.zip_url }}
+          RELEASE_CHANGELOG: ${{ steps.asset.outputs.changelog }}
+          RELEASE_PUBLISHED_AT: ${{ steps.asset.outputs.published_at }}
+          RELEASE_TAG: ${{ steps.asset.outputs.github_release_tag }}
+        run: |
+          $body = @{
+            target_version = $env:RELEASE_VERSION
+            target_zip_url = $env:RELEASE_ZIP_URL
+            target_changelog = $env:RELEASE_CHANGELOG
+            target_published_at = $env:RELEASE_PUBLISHED_AT
+            target_github_release_tag = $env:RELEASE_TAG
+          } | ConvertTo-Json -Depth 5
+
+          Invoke-RestMethod \
+            -Method Post \
+            -Uri "$env:SUPABASE_URL/rest/v1/rpc/admin_publish_build_release" \
+            -Headers @{
+              apikey = $env:SUPABASE_SERVICE_ROLE_KEY
+              Authorization = "Bearer $env:SUPABASE_SERVICE_ROLE_KEY"
+              'Content-Type' = 'application/json'
+            } \
+            -Body $body
+        shell: pwsh

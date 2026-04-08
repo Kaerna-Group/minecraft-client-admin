@@ -1,6 +1,8 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'node:path';
 
+import { checkBuildStatus, getInstallState, installBuild, retryInstall } from './services/build-installer';
+
 const createWindow = () => {
   const window = new BrowserWindow({
     width: 1440,
@@ -29,6 +31,11 @@ app.whenReady().then(() => {
     version: app.getVersion(),
     platform: process.platform,
   }));
+
+  ipcMain.handle('launcher:get-install-state', async () => getInstallState());
+  ipcMain.handle('launcher:check-build-status', async (_event, release, settings) => checkBuildStatus(release, settings));
+  ipcMain.handle('launcher:install-build', async (_event, request) => installBuild(request));
+  ipcMain.handle('launcher:retry-install', async () => retryInstall());
 
   createWindow();
 
