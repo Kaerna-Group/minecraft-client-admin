@@ -21,10 +21,17 @@ jobs:
       - name: Resolve release and zip asset
         id: asset
         uses: actions/github-script@v7
+        env:
+          WORKFLOW_TAG: ${{ github.event.inputs.tag || '' }}
         with:
           script: |
-            const inputTag = core.getInput('tag');
+            const inputTag = process.env.WORKFLOW_TAG.trim();
             const isManual = context.eventName === 'workflow_dispatch';
+
+            if (isManual && !inputTag) {
+              core.setFailed('Tag input is required for manual runs. Pass a tag like v0.1.1.');
+              return;
+            }
 
             const release = isManual
               ? (await github.rest.repos.getReleaseByTag({
@@ -34,14 +41,20 @@ jobs:
                 })).data
               : context.payload.release;
 
-            const assets = (await github.rest.repos.listReleaseAssets({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: release.id,
-              per_page: 100,
-            })).data;
+            const assets = (
+              await github.rest.repos.listReleaseAssets({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.id,
+                per_page: 100,
+              })
+            ).data;
 
-            const zipAsset = assets.find((asset) => asset.name.toLowerCase().endsWith('.zip'));
+            const zipAsset = assets.find(
+              (asset) =>
+                asset.name.toLowerCase().endsWith('.zip') &&
+                !asset.name.toLowerCase().startsWith('source code'),
+            );
 
             if (!zipAsset) {
               core.setFailed(
