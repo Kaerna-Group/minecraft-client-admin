@@ -21,12 +21,12 @@ function TableSkeleton({ columns, rows, density }: { columns: number; rows: numb
   const padding = density === 'compact' ? 'px-4 py-2.5' : 'px-4 py-3.5';
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10">
+    <div className="overflow-x-auto rounded-2xl border border-white/10">
       <table className="min-w-full divide-y divide-white/10 text-left text-sm text-slate-200">
         <thead className="bg-white/[0.04] text-xs uppercase tracking-[0.22em] text-slate-500">
           <tr>
             {Array.from({ length: columns }).map((_, index) => (
-              <th key={index} className="px-4 py-3 font-semibold">
+              <th key={index} className="px-4 py-3 font-semibold whitespace-nowrap">
                 <div className="h-3 w-16 animate-pulse rounded bg-white/10" />
               </th>
             ))}
@@ -36,8 +36,8 @@ function TableSkeleton({ columns, rows, density }: { columns: number; rows: numb
           {Array.from({ length: rows }).map((_, rowIndex) => (
             <tr key={rowIndex} className="align-top">
               {Array.from({ length: columns }).map((__, columnIndex) => (
-                <td key={columnIndex} className={`${padding} text-slate-300`}>
-                  <div className="h-4 animate-pulse rounded bg-white/10" />
+                <td key={columnIndex} className={`${padding} whitespace-nowrap text-slate-300`}>
+                  <div className="h-4 min-w-24 animate-pulse rounded bg-white/10" />
                 </td>
               ))}
             </tr>
@@ -64,12 +64,12 @@ export function EntityTable<T>({ columns, emptyLabel, rows, loading = false, den
   const cellPadding = density === 'compact' ? 'px-4 py-2.5' : 'px-4 py-3.5';
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10">
+    <div className="overflow-x-auto rounded-2xl border border-white/10">
       <table className="min-w-full divide-y divide-white/10 text-left text-sm text-slate-200">
         <thead className="bg-white/[0.04] text-xs uppercase tracking-[0.22em] text-slate-500">
           <tr>
             {columns.map((column) => (
-              <th key={column.key} className="px-4 py-3 font-semibold">
+              <th key={column.key} className="px-4 py-3 font-semibold whitespace-nowrap">
                 {column.header}
               </th>
             ))}
@@ -79,7 +79,7 @@ export function EntityTable<T>({ columns, emptyLabel, rows, loading = false, den
           {rows.map((row, index) => (
             <tr key={getRowKey ? getRowKey(row, index) : index} className="align-top">
               {columns.map((column) => (
-                <td key={column.key} className={`${cellPadding} ${column.className ?? ''} text-slate-300`}>
+                <td key={column.key} className={`${cellPadding} ${column.className ?? ''} whitespace-nowrap text-slate-300`}>
                   {column.render(row)}
                 </td>
               ))}

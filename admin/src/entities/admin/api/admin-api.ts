@@ -141,6 +141,23 @@ function requireSupabase() {
   return supabase;
 }
 
+function normalizeRpcError(functionName: string, error: unknown) {
+  const raw = error instanceof Error ? error.message : String(error ?? 'Unknown RPC error');
+  const normalized = raw.toLowerCase();
+
+  if (
+    normalized.includes('404') ||
+    normalized.includes('not found') ||
+    normalized.includes(functionName.toLowerCase())
+  ) {
+    if (functionName === 'admin_get_system_status' || functionName === 'admin_list_audit_logs') {
+      return new Error(`Supabase admin ops RPC is missing (${functionName}). Run supabase/admin_ops.sql in the target project.`);
+    }
+  }
+
+  return error instanceof Error ? error : new Error(raw);
+}
+
 function parseCursorPage<T>(data: unknown): CursorPage<T> {
   if (!data || typeof data !== 'object') {
     return { items: [], nextCursor: null, hasMore: false };
@@ -164,7 +181,7 @@ async function callCursorRpc<T>(functionName: string, params: Record<string, unk
   const { data, error } = await client.rpc(functionName, params);
 
   if (error) {
-    throw error;
+    throw normalizeRpcError(functionName, error);
   }
 
   return parseCursorPage<T>(data);
@@ -175,7 +192,7 @@ async function callRpc<T>(functionName: string, params: Record<string, unknown> 
   const { data, error } = await client.rpc(functionName, params);
 
   if (error) {
-    throw error;
+    throw normalizeRpcError(functionName, error);
   }
 
   return data as T;

@@ -3,6 +3,18 @@ export function normalizeAdminErrorMessage(error: unknown) {
   const raw = error instanceof Error ? error.message : String(error ?? fallback);
   const normalized = raw.toLowerCase();
 
+  if (normalized.includes('supabase admin ops rpc is missing') || normalized.includes('admin_get_system_status') || normalized.includes('admin_list_audit_logs')) {
+    return 'The admin operations RPC layer is missing in Supabase. Run `supabase/admin_ops.sql` in the target project and refresh the page.';
+  }
+
+  if (normalized.includes('failed to fetch') || normalized.includes('networkerror')) {
+    return 'The admin app could not reach Supabase. Check the network, deployment env vars, and the project URL.';
+  }
+
+  if (normalized.includes('clipboard api is unavailable')) {
+    return 'Clipboard access is unavailable in this browser context.';
+  }
+
   if (normalized.includes('last_admin_guard')) {
     return 'You cannot remove or downgrade the last remaining admin.';
   }

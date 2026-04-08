@@ -20,6 +20,8 @@ export function useCursorResource<T>(loader: Loader<T>, queryKey: string, option
   const onStateChangeRef = useRef(options.onStateChange);
   const previousQueryKeyRef = useRef(queryKey);
   const lastRestoreKeyRef = useRef<string | undefined>(options.restoreKey);
+  const requestIdRef = useRef(0);
+  const mountedRef = useRef(true);
   const [currentCursor, setCurrentCursor] = useState<CursorValue | null>(options.restoredState?.currentCursor ?? null);
   const [history, setHistory] = useState<Array<CursorValue | null>>(options.restoredState?.history ?? []);
   const [data, setData] = useState<T[]>([]);
@@ -35,6 +37,12 @@ export function useCursorResource<T>(loader: Loader<T>, queryKey: string, option
   useEffect(() => {
     onStateChangeRef.current = options.onStateChange;
   }, [options.onStateChange]);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (options.restoreKey === undefined || options.restoreKey === lastRestoreKeyRef.current) {
@@ -59,50 +67,65 @@ export function useCursorResource<T>(loader: Loader<T>, queryKey: string, option
   }, [currentCursor, options.restoredState?.currentCursor, queryKey]);
 
   const refresh = useCallback(async () => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     setLoading(true);
     setError('');
 
     try {
       const result = await loaderRef.current(effectiveCursor);
+      if (!mountedRef.current || requestId !== requestIdRef.current) {
+        return;
+      }
+
       setData(result.items);
       setNextCursor(result.nextCursor);
       setHasMore(result.hasMore);
     } catch (nextError) {
+      if (!mountedRef.current || requestId !== requestIdRef.current) {
+        return;
+      }
+
       const message = nextError instanceof Error ? nextError.message : 'Unknown error';
       setError(message);
-      setData([]);
       setNextCursor(null);
       setHasMore(false);
     } finally {
-      setLoading(false);
+      const shouldCommit = mountedRef.current && requestId === requestIdRef.current;
+      if (shouldCommit) {
+        setLoading(false);
+      }
     }
   }, [effectiveCursor]);
 
   useEffect(() => {
-    if (previousQueryKeyRef.current !== queryKey) {
-      previousQueryKeyRef.current = queryKey;
-      setCurrentCursor(options.restoredState?.currentCursor ?? null);
-      setHistory(options.restoredState?.history ?? []);
+    if (previousQueryKeyRef.current === queryKey) {
       return;
     }
 
-    void refresh();
-  }, [options.restoredState, queryKey, refresh]);
+    previousQueryKeyRef.current = queryKey;
+    setCurrentCursor(options.restoredState?.currentCursor ?? null);
+    setHistory(options.restoredState?.history ?? []);
+  }, [options.restoreKey, options.restoredState, queryKey]);
 
   useEffect(() => {
     void refresh();
-  }, [effectiveCursor, refresh]);
+  }, [refresh]);
 
   const goNext = useCallback(() => {
-    if (!nextCursor) {
+    if (!nextCursor || loading) {
       return;
     }
 
     setHistory((current) => [...current, effectiveCursor]);
     setCurrentCursor(nextCursor);
-  }, [effectiveCursor, nextCursor]);
+  }, [effectiveCursor, loading, nextCursor]);
 
   const goPrevious = useCallback(() => {
+    if (loading) {
+      return;
+    }
+
     setHistory((current) => {
       if (current.length === 0) {
         return current;
@@ -113,7 +136,7 @@ export function useCursorResource<T>(loader: Loader<T>, queryKey: string, option
       setCurrentCursor(previousCursor);
       return nextHistory;
     });
-  }, []);
+  }, [loading]);
 
   return {
     data,
