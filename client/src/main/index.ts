@@ -1,7 +1,19 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'node:path';
 
-import { checkBuildStatus, getInstallState, installBuild, retryInstall } from './services/build-installer';
+import {
+  checkBuildStatus,
+  getInstallState,
+  installBuild,
+  retryInstall,
+} from './services/build-installer';
+import {
+  getLaunchState,
+  getRecentLaunchLogs,
+  launchGame,
+  stopGame,
+  validateRuntime,
+} from './services/minecraft-runtime';
 
 const createWindow = () => {
   const window = new BrowserWindow({
@@ -33,9 +45,25 @@ app.whenReady().then(() => {
   }));
 
   ipcMain.handle('launcher:get-install-state', async () => getInstallState());
-  ipcMain.handle('launcher:check-build-status', async (_event, release, settings) => checkBuildStatus(release, settings));
-  ipcMain.handle('launcher:install-build', async (_event, request) => installBuild(request));
+  ipcMain.handle(
+    'launcher:check-build-status',
+    async (_event, release, settings) => checkBuildStatus(release, settings),
+  );
+  ipcMain.handle('launcher:install-build', async (_event, request) =>
+    installBuild(request),
+  );
   ipcMain.handle('launcher:retry-install', async () => retryInstall());
+  ipcMain.handle('launcher:get-launch-state', async () => getLaunchState());
+  ipcMain.handle('launcher:get-recent-launch-logs', async () =>
+    getRecentLaunchLogs(),
+  );
+  ipcMain.handle('launcher:validate-runtime', async (_event, request) =>
+    validateRuntime(request),
+  );
+  ipcMain.handle('launcher:launch-game', async (_event, request) =>
+    launchGame(request),
+  );
+  ipcMain.handle('launcher:stop-game', async () => stopGame());
 
   createWindow();
 

@@ -5,37 +5,51 @@ import App from '../App';
 import { useLauncherStore } from '../store/launcher-store';
 
 describe('App shell routes', () => {
-  beforeEach(() => {
-    useLauncherStore.setState({
-      shellReady: true,
-      bootstrapping: false,
-      session: null,
-      authError: '',
-      registerMessage: '',
-      initializeApp: async () => {},
+  beforeEach(async () => {
+    await act(async () => {
+      useLauncherStore.setState({
+        shellReady: true,
+        bootstrapping: false,
+        session: null,
+        authError: '',
+        registerMessage: '',
+        initializeApp: async () => {},
+      });
     });
   });
 
-  afterEach(() => {
-    useLauncherStore.setState({
-      shellReady: false,
-      bootstrapping: false,
-      session: null,
-      authError: '',
-      registerMessage: '',
+  afterEach(async () => {
+    await act(async () => {
+      useLauncherStore.setState({
+        shellReady: false,
+        bootstrapping: false,
+        session: null,
+        authError: '',
+        registerMessage: '',
+      });
     });
   });
 
   it('renders the login screen for guests', async () => {
     await act(async () => {
       render(
-        <MemoryRouter initialEntries={['/login']}>
+        <MemoryRouter
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+          initialEntries={['/login']}
+        >
           <App />
         </MemoryRouter>,
       );
     });
 
-    expect(await screen.findByRole('heading', { name: 'Login' })).toBeInTheDocument();
-    expect(await screen.findByRole('link', { name: 'Create one here' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Login' }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole('link', { name: 'Create one here' }),
+    ).toBeInTheDocument();
   });
 });

@@ -1,4 +1,5 @@
 import { useLauncherStore } from '../store/launcher-store';
+import { defaultSettings } from '../lib/settings';
 
 describe('launcher store', () => {
   afterEach(() => {
@@ -18,6 +19,28 @@ describe('launcher store', () => {
       activeBan: null,
       news: [],
       activeRelease: null,
+      installState: {
+        phase: 'idle',
+        installedVersion: null,
+        remoteVersion: null,
+        updateAvailable: false,
+        progress: 0,
+        message: 'Launcher has not checked the local build yet.',
+        instancePath: defaultSettings.instancePath,
+        lastInstalledAt: null,
+        lastError: '',
+        activeReleaseId: null,
+      },
+      runtimeState: {
+        phase: 'idle',
+        javaPath: null,
+        javaVersion: null,
+        processId: null,
+        message: 'Runtime validation has not started yet.',
+        lastError: '',
+        logs: [],
+        canLaunch: false,
+      },
       authError: '',
       dataError: '',
       registerMessage: '',
@@ -31,5 +54,6 @@ describe('launcher store', () => {
     expect(state.session).toBeNull();
     expect(state.roles).toEqual([]);
     expect(state.serverStatus).toBe('offline');
+    expect(state.runtimeState.phase).toBe('idle');
   });
 });

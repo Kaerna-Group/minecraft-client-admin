@@ -1,11 +1,9 @@
 import { app } from 'electron';
 import { createWriteStream } from 'node:fs';
-import { access, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 
 import type {
   LauncherInstallRequest,
@@ -13,9 +11,15 @@ import type {
   LauncherInstallState,
   LauncherReleaseDescriptor,
 } from '../../shared/launcher-api';
+import {
+  applyModpack,
+  bootstrapMinecraftStack,
+  TARGET_MINECRAFT_VERSION,
+  TARGET_NEOFORGE_VERSION,
+} from './minecraft-bootstrap';
 
-const execFileAsync = promisify(execFile);
 const STATE_FILE_NAME = 'install-state.json';
+const TEMP_DIR_NAME = '.kaerna-launcher-temp';
 
 type PersistedInstallState = {
   installedVersion: string | null;
@@ -49,6 +53,19 @@ function getStateFilePath() {
   return join(getUserDataPath(), STATE_FILE_NAME);
 }
 
+function getTempRoot(instancePath: string) {
+  return join(dirname(instancePath), TEMP_DIR_NAME);
+}
+
+async function pathExists(targetPath: string) {
+  try {
+    await access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function ensureParentDir(filePath: string) {
   await mkdir(dirname(filePath), { recursive: true });
 }
@@ -79,29 +96,30 @@ async function writePersistedState(nextState: PersistedInstallState) {
   await writeFile(targetPath, JSON.stringify(nextState, null, 2), 'utf8');
 }
 
-async function pathExists(targetPath: string) {
-  try {
-    await access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function ensureEmptyDir(targetPath: string) {
-  await rm(targetPath, { recursive: true, force: true });
-  await mkdir(targetPath, { recursive: true });
-}
-
-async function validateExtractedDirectory(targetPath: string) {
-  const directoryStat = await stat(targetPath);
-  if (!directoryStat.isDirectory()) {
-    throw new Error('Extracted archive did not produce a directory.');
+async function resolveInstalledVersionForPath(
+  persistedState: PersistedInstallState,
+  instancePath: string,
+) {
+  if (!persistedState.installedVersion) {
+    return null;
   }
 
-  const validationFile = join(targetPath, '.install-validation.tmp');
-  await writeFile(validationFile, 'ok', 'utf8');
-  await rm(validationFile, { force: true });
+  if (!persistedState.instancePath || persistedState.instancePath !== instancePath) {
+    return null;
+  }
+
+  const requiredPaths = [
+    join(instancePath, 'versions'),
+    join(instancePath, 'libraries'),
+    join(instancePath, 'assets'),
+  ];
+
+  const checks = await Promise.all(requiredPaths.map((targetPath) => pathExists(targetPath)));
+  if (checks.some((exists) => !exists)) {
+    return null;
+  }
+
+  return persistedState.installedVersion;
 }
 
 async function finishWrite(stream: ReturnType<typeof createWriteStream>) {
@@ -115,7 +133,7 @@ async function downloadReleaseArchive(zipUrl: string, archivePath: string, onPro
   const response = await fetch(zipUrl);
 
   if (!response.ok || !response.body) {
-    throw new Error(`Failed to download build archive: ${response.status} ${response.statusText}`);
+    throw new Error(`Failed to download modpack archive: ${response.status} ${response.statusText}`);
   }
 
   await ensureParentDir(archivePath);
@@ -140,8 +158,8 @@ async function downloadReleaseArchive(zipUrl: string, archivePath: string, onPro
       fileStream.write(Buffer.from(value));
 
       if (totalBytes > 0) {
-        const progress = Math.max(5, Math.min(80, Math.round((downloadedBytes / totalBytes) * 80)));
-        onProgress(progress, `Downloading build archive (${progress}%)`);
+        const progress = 82 + Math.min(8, Math.round((downloadedBytes / totalBytes) * 8));
+        onProgress(progress, `Downloading modpack archive (${progress}%)`);
       }
     }
 
@@ -151,14 +169,7 @@ async function downloadReleaseArchive(zipUrl: string, archivePath: string, onPro
   }
 
   await pipeline(Readable.fromWeb(response.body as never), fileStream);
-  onProgress(80, 'Downloading build archive (80%)');
-}
-
-async function extractArchive(archivePath: string, targetPath: string) {
-  await ensureEmptyDir(targetPath);
-
-  const command = `Expand-Archive -LiteralPath '${archivePath.replace(/'/g, "''")}' -DestinationPath '${targetPath.replace(/'/g, "''")}' -Force`;
-  await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command]);
+  onProgress(90, 'Downloading modpack archive (90%)');
 }
 
 function updateRuntimeState(patch: Partial<LauncherInstallState>) {
@@ -167,12 +178,16 @@ function updateRuntimeState(patch: Partial<LauncherInstallState>) {
 
 export async function getInstallState() {
   const persistedState = await readPersistedState();
+  const installedVersion = await resolveInstalledVersionForPath(
+    persistedState,
+    persistedState.instancePath,
+  );
   runtimeState = {
     ...runtimeState,
-    installedVersion: persistedState.installedVersion,
-    lastInstalledAt: persistedState.lastInstalledAt,
+    installedVersion,
+    lastInstalledAt: installedVersion ? persistedState.lastInstalledAt : null,
     instancePath: persistedState.instancePath,
-    activeReleaseId: persistedState.activeReleaseId,
+    activeReleaseId: installedVersion ? persistedState.activeReleaseId : null,
   };
 
   return runtimeState;
@@ -186,7 +201,7 @@ function derivePhase(activeRelease: LauncherReleaseDescriptor | null, installedV
       remoteVersion: null,
       updateAvailable: false,
       progress: 0,
-      message: 'No active build release is published yet.',
+      message: 'No active modpack release is published yet.',
       instancePath: settings.instancePath,
       lastError: '',
     };
@@ -199,7 +214,7 @@ function derivePhase(activeRelease: LauncherReleaseDescriptor | null, installedV
       remoteVersion: activeRelease.version,
       updateAvailable: false,
       progress: 100,
-      message: 'Installed build is up to date.',
+      message: `Minecraft ${TARGET_MINECRAFT_VERSION} + NeoForge ${TARGET_NEOFORGE_VERSION} is ready with modpack ${activeRelease.version}.`,
       instancePath: settings.instancePath,
       activeReleaseId: activeRelease.id,
       lastError: '',
@@ -212,7 +227,9 @@ function derivePhase(activeRelease: LauncherReleaseDescriptor | null, installedV
     remoteVersion: activeRelease.version,
     updateAvailable: true,
     progress: 0,
-    message: installedVersion ? 'A newer build is available for install.' : 'No local build is installed yet.',
+    message: installedVersion
+      ? 'A newer modpack release is available for install.'
+      : `No local ${TARGET_MINECRAFT_VERSION} / NeoForge ${TARGET_NEOFORGE_VERSION} stack is installed yet.`,
     instancePath: settings.instancePath,
     activeReleaseId: activeRelease.id,
     lastError: '',
@@ -220,16 +237,20 @@ function derivePhase(activeRelease: LauncherReleaseDescriptor | null, installedV
 }
 
 export async function checkBuildStatus(activeRelease: LauncherReleaseDescriptor | null, settings: LauncherInstallSettings) {
-  updateRuntimeState({ phase: 'checking', message: 'Checking local build status...', progress: 0, instancePath: settings.instancePath });
+  updateRuntimeState({ phase: 'checking', message: 'Checking local Minecraft stack status...', progress: 0, instancePath: settings.instancePath });
 
   const persistedState = await readPersistedState();
-  const derivedState = derivePhase(activeRelease, persistedState.installedVersion, settings);
+  const installedVersion = await resolveInstalledVersionForPath(
+    persistedState,
+    settings.instancePath,
+  );
+  const derivedState = derivePhase(activeRelease, installedVersion, settings);
   runtimeState = {
     ...derivedState,
-    installedVersion: persistedState.installedVersion,
-    lastInstalledAt: persistedState.lastInstalledAt,
+    installedVersion,
+    lastInstalledAt: installedVersion ? persistedState.lastInstalledAt : null,
     instancePath: settings.instancePath,
-    activeReleaseId: activeRelease?.id ?? persistedState.activeReleaseId,
+    activeReleaseId: installedVersion ? activeRelease?.id ?? persistedState.activeReleaseId : activeRelease?.id ?? null,
   };
 
   return runtimeState;
@@ -246,19 +267,16 @@ export async function installBuild(request: LauncherInstallRequest) {
     const release = request.release;
     const settings = request.settings;
     const persistedState = await readPersistedState();
-    const userDataPath = getUserDataPath();
-    const tempRoot = join(userDataPath, 'build-temp');
+    const tempRoot = getTempRoot(settings.instancePath);
     const timestamp = Date.now().toString();
-    const archivePath = join(tempRoot, `${release.version}-${timestamp}.zip`);
-    const stagingPath = join(tempRoot, `staging-${release.version}-${timestamp}`);
-    const backupPath = join(tempRoot, `backup-${release.version}-${timestamp}`);
-    const livePath = settings.instancePath;
+    const modpackArchivePath = join(tempRoot, `${release.version}-${timestamp}.zip`);
+    const modpackStagingPath = join(tempRoot, `modpack-${release.version}-${timestamp}`);
 
     updateRuntimeState({
-      phase: 'downloading',
+      phase: 'bootstrapping_minecraft',
       remoteVersion: release.version,
       progress: 1,
-      message: 'Downloading build archive...',
+      message: `Bootstrapping Minecraft ${TARGET_MINECRAFT_VERSION}...`,
       instancePath: settings.instancePath,
       activeReleaseId: release.id,
       lastError: '',
@@ -267,34 +285,21 @@ export async function installBuild(request: LauncherInstallRequest) {
     try {
       await mkdir(tempRoot, { recursive: true });
 
-      await downloadReleaseArchive(release.zipUrl, archivePath, (progress, message) => {
-        updateRuntimeState({ progress, message, phase: 'downloading' });
+      await bootstrapMinecraftStack(settings.instancePath, tempRoot, settings, (progress, message) => {
+        const phase = progress < 56 ? 'bootstrapping_minecraft' : 'bootstrapping_neoforge';
+        updateRuntimeState({ progress, message, phase });
       });
 
-      updateRuntimeState({ phase: 'extracting', progress: 85, message: 'Extracting build archive...' });
-      await extractArchive(archivePath, stagingPath);
-      await validateExtractedDirectory(stagingPath);
+      updateRuntimeState({ phase: 'applying_modpack', progress: 82, message: 'Downloading modpack archive...' });
+      await downloadReleaseArchive(release.zipUrl, modpackArchivePath, (progress, message) => {
+        updateRuntimeState({ progress, message, phase: 'applying_modpack' });
+      });
+      await applyModpack(settings.instancePath, modpackArchivePath, modpackStagingPath, (progress, message) => {
+        updateRuntimeState({ progress, message, phase: 'applying_modpack' });
+      });
 
-      let backupCreated = false;
-      if (await pathExists(livePath)) {
-        await rm(backupPath, { recursive: true, force: true });
-        await rename(livePath, backupPath);
-        backupCreated = true;
-      }
-
-      try {
-        await rm(livePath, { recursive: true, force: true });
-        await rename(stagingPath, livePath);
-      } catch (swapError) {
-        if (backupCreated && !(await pathExists(livePath))) {
-          await rename(backupPath, livePath);
-        }
-        throw swapError;
-      }
-
-      await rm(backupPath, { recursive: true, force: true });
-      await rm(archivePath, { force: true });
-      await rm(stagingPath, { recursive: true, force: true });
+      await rm(modpackArchivePath, { force: true });
+      await rm(modpackStagingPath, { recursive: true, force: true });
 
       const nextPersistedState: PersistedInstallState = {
         installedVersion: release.version,
@@ -311,7 +316,7 @@ export async function installBuild(request: LauncherInstallRequest) {
         remoteVersion: release.version,
         updateAvailable: false,
         progress: 100,
-        message: 'Build installed successfully.',
+        message: `Minecraft ${TARGET_MINECRAFT_VERSION} + NeoForge ${TARGET_NEOFORGE_VERSION} is ready with modpack ${release.version}.`,
         instancePath: settings.instancePath,
         lastInstalledAt: nextPersistedState.lastInstalledAt,
         lastError: '',
@@ -320,24 +325,29 @@ export async function installBuild(request: LauncherInstallRequest) {
 
       return runtimeState;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to install build.';
+      const message = error instanceof Error ? error.message : 'Failed to install modpack build.';
+
+      const installedVersion = await resolveInstalledVersionForPath(
+        persistedState,
+        settings.instancePath,
+      );
 
       runtimeState = {
         ...runtimeState,
         phase: 'failed',
-        installedVersion: persistedState.installedVersion,
+        installedVersion,
         remoteVersion: release.version,
         updateAvailable: true,
         progress: 0,
-        message: 'Build install failed.',
+        message: 'Minecraft stack install failed.',
         instancePath: settings.instancePath,
-        lastInstalledAt: persistedState.lastInstalledAt,
+        lastInstalledAt: installedVersion ? persistedState.lastInstalledAt : null,
         lastError: message,
         activeReleaseId: release.id,
       };
 
-      await rm(archivePath, { force: true }).catch(() => undefined);
-      await rm(stagingPath, { recursive: true, force: true }).catch(() => undefined);
+      await rm(modpackArchivePath, { force: true }).catch(() => undefined);
+      await rm(modpackStagingPath, { recursive: true, force: true }).catch(() => undefined);
       return runtimeState;
     } finally {
       runningInstall = null;

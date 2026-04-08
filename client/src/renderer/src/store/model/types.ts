@@ -7,7 +7,10 @@ import type {
   LauncherRelease,
 } from '@renderer/lib/client-api';
 import type { LauncherSettings } from '@renderer/lib/settings';
-import type { LauncherInstallState } from '../../../../shared/launcher-api';
+import type {
+  LauncherInstallState,
+  LauncherRuntimeState,
+} from '../../../../shared/launcher-api';
 
 export type LauncherStore = {
   configured: boolean;
@@ -26,6 +29,7 @@ export type LauncherStore = {
   news: LauncherNews[];
   activeRelease: LauncherRelease | null;
   installState: LauncherInstallState;
+  runtimeState: LauncherRuntimeState;
   settings: LauncherSettings;
   authError: string;
   dataError: string;
@@ -34,6 +38,9 @@ export type LauncherStore = {
   setLogsVisible: (value: boolean) => void;
   updateSettings: (value: Partial<LauncherSettings>) => void;
   refreshInstallState: () => Promise<void>;
+  validateRuntime: () => Promise<void>;
+  launchGame: () => Promise<void>;
+  stopGame: () => Promise<void>;
   installActiveRelease: () => Promise<void>;
   retryInstall: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<boolean>;

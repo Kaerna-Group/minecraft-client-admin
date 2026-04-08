@@ -43,5 +43,5 @@ export function useRouteViewState<T extends Record<string, unknown>>(defaults: T
 }
 
 export function buildViewHref(path: string, state: Record<string, unknown>) {
-  return `${path}?view=${encodeURIComponent(JSON.stringify(state))}`;
+  return `#${path}?view=${encodeURIComponent(JSON.stringify(state))}`;
 }

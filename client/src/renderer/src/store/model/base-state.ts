@@ -6,7 +6,10 @@ import type {
   LauncherRelease,
 } from '@renderer/lib/client-api';
 import { defaultSettings } from '@renderer/lib/settings';
-import type { LauncherInstallState } from '../../../../shared/launcher-api';
+import type {
+  LauncherInstallState,
+  LauncherRuntimeState,
+} from '../../../../shared/launcher-api';
 
 const initialInstallState: LauncherInstallState = {
   phase: 'idle',
@@ -19,6 +22,17 @@ const initialInstallState: LauncherInstallState = {
   lastInstalledAt: null,
   lastError: '',
   activeReleaseId: null,
+};
+
+const initialRuntimeState: LauncherRuntimeState = {
+  phase: 'idle',
+  javaPath: null,
+  javaVersion: null,
+  processId: null,
+  message: 'Runtime validation has not started yet.',
+  lastError: '',
+  logs: [],
+  canLaunch: false,
 };
 
 export const baseState = {
@@ -38,6 +52,7 @@ export const baseState = {
   news: [] as LauncherNews[],
   activeRelease: null as LauncherRelease | null,
   installState: initialInstallState,
+  runtimeState: initialRuntimeState,
   settings: defaultSettings,
   authError: '',
   dataError: '',

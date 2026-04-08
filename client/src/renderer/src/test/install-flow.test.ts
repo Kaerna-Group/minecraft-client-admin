@@ -8,6 +8,11 @@ const { launcherApiMock } = vi.hoisted(() => ({
     checkBuildStatus: vi.fn(),
     installBuild: vi.fn(),
     retryInstall: vi.fn(),
+    getLaunchState: vi.fn(),
+    getRecentLaunchLogs: vi.fn(),
+    validateRuntime: vi.fn(),
+    launchGame: vi.fn(),
+    stopGame: vi.fn(),
   },
 }));
 
@@ -35,6 +40,17 @@ const baseInstallState = {
   activeReleaseId: null,
 };
 
+const baseRuntimeState = {
+  phase: 'idle' as const,
+  javaPath: null,
+  javaVersion: null,
+  processId: null,
+  message: 'Runtime validation has not started yet.',
+  lastError: '',
+  logs: [] as string[],
+  canLaunch: false,
+};
+
 function resetStore() {
   useLauncherStore.setState({
     configured: true,
@@ -46,14 +62,34 @@ function resetStore() {
     appVersion: '0.1.0-shell',
     platform: 'win32',
     serverStatus: 'online',
-    session: null,
+    session: {
+      access_token: 'token',
+      refresh_token: 'refresh',
+      expires_in: 3600,
+      token_type: 'bearer',
+      user: {
+        id: 'user-1',
+        email: 'player@example.com',
+      },
+    } as never,
     roles: [],
-    profile: null,
+    profile: {
+      id: 'user-1',
+      nickname: 'PlayerOne',
+      avatar_url: null,
+      created_at: null,
+      last_login_at: null,
+    },
     activeBan: null,
     news: [],
     activeRelease: null,
     installState: { ...baseInstallState },
-    settings: { ...defaultSettings, instancePath: 'C:\\KaernaLauncher\\instance', debugMode: true },
+    runtimeState: { ...baseRuntimeState },
+    settings: {
+      ...defaultSettings,
+      instancePath: 'C:\\KaernaLauncher\\instance',
+      debugMode: true,
+    },
     authError: '',
     dataError: '',
     registerMessage: '',
@@ -64,6 +100,7 @@ describe('launcher install flow actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetStore();
+    launcherApiMock.getRecentLaunchLogs.mockResolvedValue([]);
   });
 
   it('refreshInstallState maps the active release into desktop build status check', async () => {
@@ -104,9 +141,14 @@ describe('launcher install flow actions', () => {
       {
         instancePath: 'C:\\KaernaLauncher\\instance',
         debugMode: true,
+        minRamMb: defaultSettings.minRamMb,
+        maxRamMb: defaultSettings.maxRamMb,
+        javaPath: defaultSettings.javaPath,
       },
     );
-    expect(useLauncherStore.getState().installState.phase).toBe('update_available');
+    expect(useLauncherStore.getState().installState.phase).toBe(
+      'update_available',
+    );
   });
 
   it('installActiveRelease fails fast when there is no ZIP URL', async () => {
@@ -128,10 +170,12 @@ describe('launcher install flow actions', () => {
 
     expect(launcherApiMock.installBuild).not.toHaveBeenCalled();
     expect(useLauncherStore.getState().installState.phase).toBe('failed');
-    expect(useLauncherStore.getState().installState.lastError).toContain('ZIP URL');
+    expect(useLauncherStore.getState().installState.lastError).toContain(
+      'ZIP URL',
+    );
   });
 
-  it('installActiveRelease updates store after a successful desktop install', async () => {
+  it('installActiveRelease updates store after a successful desktop install and runtime validation', async () => {
     launcherApiMock.installBuild.mockResolvedValue({
       ...baseInstallState,
       phase: 'ready',
@@ -154,6 +198,15 @@ describe('launcher install flow actions', () => {
       activeReleaseId: 'release-1',
     });
 
+    launcherApiMock.validateRuntime.mockResolvedValue({
+      ...baseRuntimeState,
+      phase: 'ready_to_launch',
+      javaPath: 'C:\\Java\\bin\\java.exe',
+      javaVersion: '17.0.11',
+      message: 'Runtime validated.',
+      canLaunch: true,
+    });
+
     useLauncherStore.setState({
       activeRelease: {
         id: 'release-1',
@@ -171,8 +224,11 @@ describe('launcher install flow actions', () => {
     await useLauncherStore.getState().installActiveRelease();
 
     expect(launcherApiMock.installBuild).toHaveBeenCalledTimes(1);
+    expect(launcherApiMock.validateRuntime).toHaveBeenCalledTimes(1);
     expect(useLauncherStore.getState().installState.phase).toBe('ready');
-    expect(useLauncherStore.getState().installState.installedVersion).toBe('1.2.0');
+    expect(useLauncherStore.getState().runtimeState.phase).toBe(
+      'ready_to_launch',
+    );
   });
 
   it('retryInstall replaces failed state with desktop retry result', async () => {
@@ -196,6 +252,15 @@ describe('launcher install flow actions', () => {
       updateAvailable: false,
       message: 'Installed build is up to date.',
       activeReleaseId: 'release-1',
+    });
+
+    launcherApiMock.validateRuntime.mockResolvedValue({
+      ...baseRuntimeState,
+      phase: 'ready_to_launch',
+      javaPath: 'C:\\Java\\bin\\java.exe',
+      javaVersion: '17.0.11',
+      message: 'Runtime validated.',
+      canLaunch: true,
     });
 
     useLauncherStore.setState({
