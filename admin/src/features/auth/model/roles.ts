@@ -4,6 +4,7 @@ export type RoleCapabilities = {
   hasAdminAccess: boolean;
   isAdmin: boolean;
   isModerator: boolean;
+  canViewAuditLogs: boolean;
   canManageProfiles: boolean;
   canManageNews: boolean;
   canManageBans: boolean;
@@ -20,6 +21,7 @@ export function getRoleCapabilities(roles: AdminRole[]): RoleCapabilities {
     hasAdminAccess,
     isAdmin,
     isModerator,
+    canViewAuditLogs: isAdmin,
     canManageProfiles: isAdmin,
     canManageNews: hasAdminAccess,
     canManageBans: hasAdminAccess,

@@ -2,6 +2,7 @@ import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 
 import { useAuth } from '@features/auth/model/useAuth';
 import { AccessDeniedPage } from '@pages/access-denied/ui/AccessDeniedPage';
+import { AuditLogsPage } from '@pages/audit-logs/ui/AuditLogsPage';
 import { BansPage } from '@pages/bans/ui/BansPage';
 import { LoginPage } from '@pages/login/ui/LoginPage';
 import { NewsPage } from '@pages/news/ui/NewsPage';
@@ -9,6 +10,7 @@ import { ProfilesPage } from '@pages/profiles/ui/ProfilesPage';
 import { RegisterPage } from '@pages/register/ui/RegisterPage';
 import { ReleasesPage } from '@pages/releases/ui/ReleasesPage';
 import { RolesPage } from '@pages/roles/ui/RolesPage';
+import { SystemStatusPage } from '@pages/system-status/ui/SystemStatusPage';
 import { ProtectedLayout } from '@widgets/admin-layout/ProtectedLayout';
 
 function RequireAuth() {
@@ -29,6 +31,16 @@ function RequireAuth() {
   return <Outlet />;
 }
 
+function RequireAuditLogsAccess() {
+  const { canViewAuditLogs } = useAuth();
+
+  if (!canViewAuditLogs) {
+    return <Navigate to="/access-denied" replace />;
+  }
+
+  return <Outlet />;
+}
+
 export function AdminRoutes() {
   return (
     <Routes>
@@ -38,11 +50,15 @@ export function AdminRoutes() {
       <Route path="/access-denied" element={<AccessDeniedPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<ProtectedLayout />}>
+          <Route path="/system-status" element={<SystemStatusPage />} />
           <Route path="/profiles" element={<ProfilesPage />} />
           <Route path="/roles" element={<RolesPage />} />
           <Route path="/bans" element={<BansPage />} />
           <Route path="/news" element={<NewsPage />} />
           <Route path="/releases" element={<ReleasesPage />} />
+          <Route element={<RequireAuditLogsAccess />}>
+            <Route path="/audit-logs" element={<AuditLogsPage />} />
+          </Route>
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
