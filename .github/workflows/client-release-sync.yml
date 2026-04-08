@@ -87,13 +87,16 @@ jobs:
             target_github_release_tag = $env:RELEASE_TAG
           } | ConvertTo-Json -Depth 5
 
-          Invoke-RestMethod \
-            -Method Post \
-            -Uri "$env:SUPABASE_URL/rest/v1/rpc/admin_publish_build_release" \
-            -Headers @{
+          $request = @{
+            Method = 'Post'
+            Uri = "$env:SUPABASE_URL/rest/v1/rpc/admin_publish_build_release"
+            Headers = @{
               apikey = $env:SUPABASE_SERVICE_ROLE_KEY
               Authorization = "Bearer $env:SUPABASE_SERVICE_ROLE_KEY"
               'Content-Type' = 'application/json'
-            } \
-            -Body $body
+            }
+            Body = $body
+          }
+
+          Invoke-RestMethod @request
         shell: pwsh
