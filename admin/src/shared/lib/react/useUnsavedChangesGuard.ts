@@ -1,9 +1,7 @@
 import { useEffect } from 'react';
-import { unstable_usePrompt as usePrompt, useBeforeUnload } from 'react-router-dom';
+import { useBeforeUnload } from 'react-router-dom';
 
 export function useUnsavedChangesGuard(when: boolean, message = 'You have unsaved changes. Leave this screen?') {
-  usePrompt({ when, message });
-
   useBeforeUnload(
     (event) => {
       if (!when) {
