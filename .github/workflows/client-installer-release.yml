@@ -1,0 +1,61 @@
+name: Client Installer Release
+
+on:
+  workflow_dispatch:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-latest
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: client
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
+
+      - name: Install client dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Windows installer and portable launcher
+        run: pnpm dist:win
+
+      - name: Upload Windows release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaerna-launcher-windows-artifacts
+          path: client/release/*
+          if-no-files-found: error
+
+      - name: Attach Windows artifacts to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            client/release/*.exe
+            client/release/*.blockmap
+            client/release/latest*.yml
