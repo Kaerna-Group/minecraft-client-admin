@@ -18,10 +18,10 @@ win:
     - target: portable
       arch:
         - x64
-  artifactName: Kaerna-Launcher-${version}-${target}.${ext}
   executableName: KaernaLauncher
   signAndEditExecutable: false
 nsis:
+  artifactName: Kaerna-Launcher-${version}-setup.${ext}
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
